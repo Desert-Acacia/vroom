@@ -67,8 +67,8 @@ bool RouteExchange::is_valid() {
 
   return is_valid_for_source_range_bounds() &&
          is_valid_for_target_range_bounds() &&
-         (source.max_load() <= _input.vehicles[t_vehicle].capacity) &&
-         (target.max_load() <= _input.vehicles[s_vehicle].capacity);
+         _input.vehicles[t_vehicle].fits_any_profile(source.max_load()) &&
+         _input.vehicles[s_vehicle].fits_any_profile(target.max_load());
 }
 
 void RouteExchange::apply() {

@@ -77,6 +77,39 @@ inline Amount get_amount(const rapidjson::Value& object,
   return amount;
 }
 
+inline std::vector<CapacityProfile>
+get_capacity_profiles(const rapidjson::Value& json_vehicle, Id v_id) {
+  std::vector<CapacityProfile> profiles;
+  if (!json_vehicle.HasMember("capacity_profiles")) {
+    return profiles;
+  }
+
+  const auto& json_profiles = json_vehicle["capacity_profiles"];
+  if (!json_profiles.IsArray() || json_profiles.Empty()) {
+    throw InputException(
+      std::format("Invalid capacity_profiles for vehicle {}.", v_id));
+  }
+
+  profiles.reserve(json_profiles.Size());
+  for (rapidjson::SizeType i = 0; i < json_profiles.Size(); ++i) {
+    const auto& json_profile = json_profiles[i];
+    if (!json_profile.IsObject() || !json_profile.HasMember("capacity")) {
+      throw InputException(
+        std::format("Invalid capacity profile for vehicle {}.", v_id));
+    }
+
+    std::string name = get_string(json_profile, "name");
+    if (name.empty()) {
+      name = std::to_string(i);
+    }
+
+    profiles.push_back(
+      {std::move(name), get_amount(json_profile, "capacity", 0)});
+  }
+
+  return profiles;
+}
+
 inline Skills get_skills(const rapidjson::Value& object) {
   Skills skills;
   if (object.HasMember("skills")) {
@@ -475,7 +508,8 @@ inline Vehicle get_vehicle(const rapidjson::Value& json_vehicle,
                  get_value_for<UserDuration>(json_vehicle, "max_travel_time"),
                  get_value_for<UserDistance>(json_vehicle, "max_distance"),
                  get_vehicle_steps(json_vehicle),
-                 get_string(json_vehicle, "type"));
+                 get_string(json_vehicle, "type"),
+                 get_capacity_profiles(json_vehicle, v_id));
 }
 
 inline Location get_task_location(const rapidjson::Value& v,
@@ -582,8 +616,20 @@ void parse(Input& input, const std::string& input_str, bool geometry) {
   const bool first_vehicle_has_capacity =
     (first_vehicle.HasMember("capacity") &&
      first_vehicle["capacity"].IsArray() && !first_vehicle["capacity"].Empty());
+  const bool first_vehicle_has_capacity_profiles =
+    (!first_vehicle_has_capacity &&
+     first_vehicle.HasMember("capacity_profiles") &&
+     first_vehicle["capacity_profiles"].IsArray() &&
+     !first_vehicle["capacity_profiles"].Empty() &&
+     first_vehicle["capacity_profiles"][0].IsObject() &&
+     first_vehicle["capacity_profiles"][0].HasMember("capacity") &&
+     first_vehicle["capacity_profiles"][0]["capacity"].IsArray());
   const unsigned amount_size =
-    first_vehicle_has_capacity ? first_vehicle["capacity"].Size() : 0;
+    first_vehicle_has_capacity
+      ? first_vehicle["capacity"].Size()
+      : (first_vehicle_has_capacity_profiles
+           ? first_vehicle["capacity_profiles"][0]["capacity"].Size()
+           : 0);
 
   input.set_geometry(geometry);
 

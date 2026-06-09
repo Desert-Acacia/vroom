@@ -31,6 +31,9 @@ struct Route {
   Amount pickup;
   std::string profile;
   std::string description;
+  // Name of the capacity profile in use, empty when the vehicle has
+  // no capacity_profiles.
+  std::string capacity_profile;
   Violations violations;
 
   std::string geometry;
@@ -50,6 +53,7 @@ struct Route {
         Amount pickup,
         std::string profile,
         std::string description,
+        std::string capacity_profile = "",
         Violations&& violations = Violations(0, 0));
 
   void check_timing_consistency() const;

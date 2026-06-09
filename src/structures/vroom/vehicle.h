@@ -10,6 +10,8 @@ All rights reserved (see LICENSE).
 
 */
 
+#include <algorithm>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <unordered_map>
@@ -49,12 +51,26 @@ struct VehicleCosts {
   }
 };
 
+struct CapacityProfile {
+  std::string name;
+  Amount capacity;
+
+  friend bool operator==(const CapacityProfile& lhs,
+                         const CapacityProfile& rhs) = default;
+};
+
 struct Vehicle {
   const Id id;
   std::optional<Location> start;
   std::optional<Location> end;
   const std::string profile;
+  // Component-wise max over capacity_profiles when set, plain vehicle
+  // capacity otherwise. Always a valid upper bound for feasible
+  // loads, used for cheap pre-filters and vehicle ordering.
   const Amount capacity;
+  // Alternative capacity configurations, at most one of which applies
+  // to a route. Empty when the vehicle only has a plain capacity.
+  const std::vector<CapacityProfile> capacity_profiles;
   const Skills skills;
   const TimeWindow tw;
   const std::vector<Break> breaks;
@@ -88,7 +104,33 @@ struct Vehicle {
     const std::optional<UserDistance>& max_distance =
       std::optional<UserDistance>(),
     const std::vector<VehicleStep>& input_steps = std::vector<VehicleStep>(),
-    std::string type_str = NO_TYPE);
+    std::string type_str = NO_TYPE,
+    std::vector<CapacityProfile> capacity_profiles =
+      std::vector<CapacityProfile>());
+
+  bool has_capacity_profiles() const {
+    return !capacity_profiles.empty();
+  }
+
+  // Check whether load fits at least one capacity configuration.
+  bool fits_any_profile(const Amount& load) const {
+    if (capacity_profiles.empty()) {
+      return load <= capacity;
+    }
+    return std::ranges::any_of(capacity_profiles, [&load](const auto& p) {
+      return load <= p.capacity;
+    });
+  }
+
+  // Rank of the first capacity profile fitting load, if any.
+  std::optional<Index> first_fitting_profile(const Amount& load) const {
+    for (Index i = 0; i < capacity_profiles.size(); ++i) {
+      if (load <= capacity_profiles[i].capacity) {
+        return i;
+      }
+    }
+    return std::nullopt;
+  }
 
   bool has_start() const;
 

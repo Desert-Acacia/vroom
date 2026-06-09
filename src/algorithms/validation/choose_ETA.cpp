@@ -1136,6 +1136,45 @@ Route choose_ETA(const Input& input,
     }
   }
 
+  // Load violations are reported against a single capacity profile,
+  // chosen to minimize the number of violated steps.
+  const auto working_profile_rank = [&]() -> std::optional<Index> {
+    if (!v.has_capacity_profiles()) {
+      return std::nullopt;
+    }
+
+    std::vector<Amount> loads;
+    loads.reserve(steps.size() + 1);
+    loads.push_back(current_load);
+    Amount load = current_load;
+    for (const auto& step : steps) {
+      if (step.type == STEP_TYPE::JOB) {
+        const auto& job = input.jobs[step.rank];
+        load += job.pickup;
+        load -= job.delivery;
+        loads.push_back(load);
+      }
+    }
+
+    Index best_rank = 0;
+    auto best_violations = std::numeric_limits<std::size_t>::max();
+    for (Index p = 0; p < v.capacity_profiles.size(); ++p) {
+      const auto violations = static_cast<std::size_t>(
+        std::ranges::count_if(loads, [&](const auto& l) {
+          return !(l <= v.capacity_profiles[p].capacity);
+        }));
+      if (violations < best_violations) {
+        best_violations = violations;
+        best_rank = p;
+      }
+    }
+    return best_rank;
+  }();
+  const Amount& working_capacity =
+    working_profile_rank.has_value()
+      ? v.capacity_profiles[working_profile_rank.value()].capacity
+      : v.capacity;
+
   // Used for precedence violations.
   std::unordered_set<Index> expected_delivery_ranks;
   std::unordered_set<Index> delivery_first_ranks;
@@ -1170,7 +1209,7 @@ Route choose_ETA(const Input& input,
            get_duration(glp_mip_col_val(lp, start_Y_col)));
   }
 
-  if (!(current_load <= v.capacity)) {
+  if (!(current_load <= working_capacity)) {
     start_step.violations.types.insert(VIOLATION::LOAD);
     v_types.insert(VIOLATION::LOAD);
   }
@@ -1260,7 +1299,7 @@ Route choose_ETA(const Input& input,
         current.violations.delay = user_service_start - user_tw_end;
         user_delay += current.violations.delay;
       }
-      if (!(current_load <= v.capacity)) {
+      if (!(current_load <= working_capacity)) {
         current.violations.types.insert(VIOLATION::LOAD);
         v_types.insert(VIOLATION::LOAD);
       }
@@ -1376,7 +1415,7 @@ Route choose_ETA(const Input& input,
         current.violations.delay = user_service_start - user_tw_end;
         user_delay += current.violations.delay;
       }
-      if (!(current_load <= v.capacity)) {
+      if (!(current_load <= working_capacity)) {
         current.violations.types.insert(VIOLATION::LOAD);
         v_types.insert(VIOLATION::LOAD);
       }
@@ -1428,7 +1467,7 @@ Route choose_ETA(const Input& input,
         end_step.violations.delay = end_step.arrival - user_v_tw_end;
         user_delay += end_step.violations.delay;
       }
-      if (!(current_load <= v.capacity)) {
+      if (!(current_load <= working_capacity)) {
         end_step.violations.types.insert(VIOLATION::LOAD);
         v_types.insert(VIOLATION::LOAD);
       }
@@ -1489,6 +1528,9 @@ Route choose_ETA(const Input& input,
                sum_pickups,
                v.profile,
                v.description,
+               working_profile_rank.has_value()
+                 ? v.capacity_profiles[working_profile_rank.value()].name
+                 : "",
                Violations(user_lead_time, user_delay, std::move(v_types)));
 }
 

@@ -58,7 +58,14 @@ public:
   Index v_type;
   bool has_start;
   bool has_end;
+  // Component-wise max over capacity_profiles, used for margins and
+  // quick pre-filters.
   Amount capacity;
+  // Alternative capacity configurations for the vehicle. Holds a
+  // single entry matching capacity when the vehicle has no explicit
+  // profiles. Exact feasibility requires a single profile to fit all
+  // loads in route.
+  std::vector<Amount> capacity_profiles;
 
   std::vector<Index> route;
 

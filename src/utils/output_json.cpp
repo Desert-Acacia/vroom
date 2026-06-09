@@ -214,6 +214,13 @@ rapidjson::Value to_json(const Route& route,
                                         allocator);
   }
 
+  if (!route.capacity_profile.empty()) {
+    json_route.AddMember("capacity_profile", rapidjson::Value(), allocator);
+    json_route["capacity_profile"].SetString(route.capacity_profile.c_str(),
+                                             route.capacity_profile.size(),
+                                             allocator);
+  }
+
   if (!route.delivery.empty()) {
     rapidjson::Value json_delivery(rapidjson::kArrayType);
     for (std::size_t i = 0; i < route.delivery.size(); ++i) {

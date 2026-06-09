@@ -736,6 +736,7 @@ void set_route(const Input& input,
 
   // Track load and travel time during the route for validity.
   Amount current_load = single_jobs_deliveries;
+  Amount peak_load = current_load;
   Eval eval_sum;
   std::optional<Index> previous_index;
   if (vehicle.has_start()) {
@@ -805,6 +806,15 @@ void set_route(const Input& input,
       throw InputException(
         std::format("Route over capacity for vehicle {}.", vehicle.id));
     }
+    for (std::size_t i = 0; i < peak_load.size(); ++i) {
+      peak_load[i] = std::max(peak_load[i], current_load[i]);
+    }
+  }
+
+  // A single capacity profile has to fit all loads in route.
+  if (!vehicle.fits_any_profile(peak_load)) {
+    throw InputException(
+      std::format("Route over capacity for vehicle {}.", vehicle.id));
   }
 
   if (vehicle.has_end() && !job_ranks.empty()) {

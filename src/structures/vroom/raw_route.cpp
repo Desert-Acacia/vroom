@@ -7,6 +7,8 @@ All rights reserved (see LICENSE).
 
 */
 
+#include <algorithm>
+
 #include "structures/vroom/raw_route.h"
 
 namespace vroom {
@@ -22,6 +24,15 @@ RawRoute::RawRoute(const Input& input, Index i, unsigned amount_size)
     has_start(input.vehicles[i].has_start()),
     has_end(input.vehicles[i].has_end()),
     capacity(input.vehicles[i].capacity) {
+  const auto& v_profiles = input.vehicles[i].capacity_profiles;
+  if (v_profiles.empty()) {
+    capacity_profiles.push_back(capacity);
+  } else {
+    capacity_profiles.reserve(v_profiles.size());
+    for (const auto& p : v_profiles) {
+      capacity_profiles.push_back(p.capacity);
+    }
+  }
 }
 
 void RawRoute::set_route(const Input& input, const std::vector<Index>& r) {
@@ -164,8 +175,11 @@ bool RawRoute::is_valid_addition_for_capacity(const Input&,
                                               const Index rank) const {
   assert(rank <= route.size());
 
-  return (_fwd_peaks[rank] + delivery <= capacity) &&
-         (_bwd_peaks[rank] + pickup <= capacity);
+  // The same profile has to fit both peak loads.
+  return std::ranges::any_of(capacity_profiles, [&](const auto& c) {
+    return (_fwd_peaks[rank] + delivery <= c) &&
+           (_bwd_peaks[rank] + pickup <= c);
+  });
 }
 
 bool RawRoute::is_valid_addition_for_load(const Input&,
@@ -174,7 +188,9 @@ bool RawRoute::is_valid_addition_for_load(const Input&,
   assert(rank <= route.size());
 
   const auto& load = route.empty() ? _zero : _current_loads[rank];
-  return load + pickup <= capacity;
+  return std::ranges::any_of(capacity_profiles, [&](const auto& c) {
+    return load + pickup <= c;
+  });
 }
 
 bool RawRoute::is_valid_addition_for_capacity_margins(
@@ -194,10 +210,12 @@ bool RawRoute::is_valid_addition_for_capacity_margins(
 
   auto replaced_deliveries = first_deliveries - _bwd_deliveries[last_rank - 1];
 
-  return (_fwd_peaks[first_rank] + delivery <=
-          capacity + replaced_deliveries) &&
-         (_bwd_peaks[last_rank] + pickup <=
-          capacity + _fwd_pickups[last_rank - 1] - first_pickups);
+  // The same profile has to fit both peak loads.
+  return std::ranges::any_of(capacity_profiles, [&](const auto& c) {
+    return (_fwd_peaks[first_rank] + delivery <= c + replaced_deliveries) &&
+           (_bwd_peaks[last_rank] + pickup <=
+            c + _fwd_pickups[last_rank - 1] - first_pickups);
+  });
 }
 
 template <std::forward_iterator Iter>
@@ -224,21 +242,22 @@ bool RawRoute::is_valid_addition_for_capacity_inclusion(
   delivery += ((route.empty()) ? _zero : _current_loads[first_rank]) -
               replaced_deliveries;
 
-  bool valid = (delivery <= capacity);
+  // The same profile has to fit all loads along included range.
+  return std::ranges::any_of(capacity_profiles, [&](const auto& c) {
+    Amount current_load(delivery);
+    bool valid = (current_load <= c);
 
-  for (auto job_iter = first_job; job_iter != last_job; ++job_iter) {
-    if (!valid) {
-      break;
+    for (auto job_iter = first_job; valid && job_iter != last_job;
+         ++job_iter) {
+      auto& job = input.jobs[*job_iter];
+      current_load += job.pickup;
+      current_load -= job.delivery;
+
+      valid = (current_load <= c);
     }
 
-    auto& job = input.jobs[*job_iter];
-    delivery += job.pickup;
-    delivery -= job.delivery;
-
-    valid = (delivery <= capacity);
-  }
-
-  return valid;
+    return valid;
+  });
 }
 
 const Amount& RawRoute::job_deliveries_sum() const {

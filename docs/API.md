@@ -115,6 +115,7 @@ A `vehicle` object has the following properties:
 | [`end`] | coordinates array |
 | [`end_index`] | index of relevant row and column in custom matrices |
 | [`capacity`] | an array of integers describing multidimensional quantities |
+| [`capacity_profiles`] | an array of `capacity_profile` objects describing alternative capacity configurations, mutually exclusive with `capacity` |
 | [`costs`] | a `cost` object defining costs for this vehicle |
 | [`skills`] | an array of integers defining skills |
 | [`type`] | a string describing this vehicle type |
@@ -139,6 +140,13 @@ Using a non-default `per-hour` value means defining travel costs based
 on travel times with a multiplicative factor. So in particular
 providing a custom costs matrix for the vehicle is inconsistent and
 will raise an error.
+
+A `capacity_profile` object has the following properties:
+
+| Key         | Description |
+| ----------- | ----------- |
+| [`name`] | a string identifying this profile in output (defaults to its rank in `capacity_profiles`) |
+| `capacity` | an array of integers describing multidimensional quantities |
 
 A `break` object has the following properties:
 
@@ -207,6 +215,16 @@ first.
 It is assumed that all delivery-related amounts for jobs are loaded at
 vehicle start, while all pickup-related amounts for jobs are brought
 back at vehicle end.
+
+Use `capacity_profiles` instead of `capacity` to describe a vehicle
+with several alternative capacity configurations (e.g. a van whose
+seats can be folded to trade passenger slots for cargo space). A
+single profile applies to a whole route: a set of tasks is only
+allowed if at least one profile fits the resulting load at each route
+step. The profile in use is reported in output with the
+`capacity_profile` route key. When several profiles fit, the first
+fitting one in input order is reported, so it is recommended to put
+preferred profiles first.
 
 ### Skills
 
@@ -403,6 +421,7 @@ A `route` object has the following properties:
 | ~~[`amount`]~~ | ~~total amount for jobs in this route~~ |
 | [`delivery`] | total delivery for tasks in this route |
 | [`pickup`] | total pickup for tasks in this route |
+| [`capacity_profile`] | name of the capacity profile in use, if the vehicle has `capacity_profiles` |
 | [`description`] | vehicle description, if provided in input |
 | [`geometry`]* | polyline encoded route geometry |
 | [`distance`]** | total route distance |

@@ -303,6 +303,14 @@ Solution format_solution(const Input& input, const RawSolution& raw_routes) {
     const UserCost user_task_cost =
       scale_to_user_cost(v.task_cost(setup + service));
 
+    std::string capacity_profile;
+    if (v.has_capacity_profiles()) {
+      const auto profile_rank =
+        v.first_fitting_profile(raw_routes[i].max_load());
+      assert(profile_rank.has_value());
+      capacity_profile = v.capacity_profiles[profile_rank.value()].name;
+    }
+
     routes.emplace_back(v.id,
                         std::move(steps),
                         user_fixed_cost + user_travel_cost + user_task_cost,
@@ -315,7 +323,8 @@ Solution format_solution(const Input& input, const RawSolution& raw_routes) {
                         sum_deliveries,
                         sum_pickups,
                         v.profile,
-                        v.description);
+                        v.description,
+                        std::move(capacity_profile));
   }
 
   return Solution(input.zero_amount(),
@@ -794,6 +803,13 @@ Route format_route(const Input& input,
   const UserCost user_task_cost =
     scale_to_user_cost(v.task_cost(setup + service));
 
+  std::string capacity_profile;
+  if (v.has_capacity_profiles()) {
+    const auto profile_rank = v.first_fitting_profile(tw_r.max_load());
+    assert(profile_rank.has_value());
+    capacity_profile = v.capacity_profiles[profile_rank.value()].name;
+  }
+
   return Route(v.id,
                std::move(steps),
                user_fixed_cost + user_travel_cost + user_task_cost,
@@ -806,7 +822,8 @@ Route format_route(const Input& input,
                sum_deliveries,
                sum_pickups,
                v.profile,
-               v.description);
+               v.description,
+               std::move(capacity_profile));
 }
 
 Solution format_solution(const Input& input, const TWSolution& tw_routes) {

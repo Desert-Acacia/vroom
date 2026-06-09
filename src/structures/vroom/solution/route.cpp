@@ -26,6 +26,7 @@ Route::Route(Id vehicle,
              Amount pickup,
              std::string profile,
              std::string description,
+             std::string capacity_profile,
              Violations&& violations)
   : vehicle(vehicle),
     steps(std::move(steps)),
@@ -40,6 +41,7 @@ Route::Route(Id vehicle,
     pickup(std::move(pickup)),
     profile(std::move(profile)),
     description(std::move(description)),
+    capacity_profile(std::move(capacity_profile)),
     violations(std::move(violations)) {
 #ifndef NDEBUG
   check_timing_consistency();

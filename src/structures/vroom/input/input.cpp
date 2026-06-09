@@ -259,6 +259,9 @@ void Input::add_vehicle(const Vehicle& vehicle) {
 
   // Ensure amount size consistency.
   check_amount_size(current_v.capacity);
+  for (const auto& p : current_v.capacity_profiles) {
+    check_amount_size(p.capacity);
+  }
 
   // Check for time-windows and skills.
   _has_TW = _has_TW || !vehicle.tw.is_default() || !vehicle.breaks.empty();

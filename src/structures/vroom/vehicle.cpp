@@ -15,6 +15,37 @@ All rights reserved (see LICENSE).
 
 namespace vroom {
 
+namespace {
+// Component-wise max over all profiles, falling back to plain
+// capacity when no profile is set.
+Amount capacity_envelope(Id id,
+                         const Amount& capacity,
+                         const std::vector<CapacityProfile>& profiles) {
+  if (profiles.empty()) {
+    return capacity;
+  }
+  if (!capacity.empty()) {
+    throw InputException(
+      std::format("Can't set both capacity and capacity_profiles for vehicle "
+                  "{}.",
+                  id));
+  }
+
+  Amount envelope(profiles.front().capacity.size());
+  for (const auto& p : profiles) {
+    if (p.capacity.size() != envelope.size()) {
+      throw InputException(
+        std::format("Inconsistent capacity_profiles sizes for vehicle {}.",
+                    id));
+    }
+    for (std::size_t i = 0; i < envelope.size(); ++i) {
+      envelope[i] = std::max(envelope[i], p.capacity[i]);
+    }
+  }
+  return envelope;
+}
+} // namespace
+
 Vehicle::Vehicle(Id id,
                  const std::optional<Location>& start,
                  const std::optional<Location>& end,
@@ -30,12 +61,14 @@ Vehicle::Vehicle(Id id,
                  const std::optional<UserDuration>& max_travel_time,
                  const std::optional<UserDistance>& max_distance,
                  const std::vector<VehicleStep>& input_steps,
-                 std::string type_str)
+                 std::string type_str,
+                 std::vector<CapacityProfile> capacity_profiles)
   : id(id),
     start(start),
     end(end),
     profile(std::move(profile)),
-    capacity(capacity),
+    capacity(capacity_envelope(id, capacity, capacity_profiles)),
+    capacity_profiles(std::move(capacity_profiles)),
     skills(std::move(skills)),
     tw(tw),
     breaks(breaks),
@@ -67,7 +100,7 @@ Vehicle::Vehicle(Id id,
     break_id_to_rank[b.id] = i;
 
     if (b.max_load.has_value() &&
-        b.max_load.value().size() != capacity.size()) {
+        b.max_load.value().size() != this->capacity.size()) {
       throw InputException(
         std::format("Inconsistent break max_load size for break {}.", b.id));
     }

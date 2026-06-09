@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Added
+
+#### Features
+
+- Support for alternative vehicle capacity configurations using `capacity_profiles`, reporting the profile in use with the `capacity_profile` route key
+
 ### Fixed
 
 #### Internals
